@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    /* ── 언어 및 환경 ───────────────────────────────────── */
+    "target": "ES2017",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    /* ── Next.js 필수 설정 ──────────────────────────────── */
+    "jsx": "preserve",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    /* ── 경로 별칭 (@/ → 프로젝트 루트) ────────────────── */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    /* ── 타입 엄격도 ────────────────────────────────────── */
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    /* ── 추가 엄격 체크 ─────────────────────────────────── */
+    "noUnusedLocals": false, /* 미사용 변수 경고 (MVP에서는 off) */
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    /* ── 인크리멘탈 빌드 ─────────────────────────────────── */
+    "incremental": true,
+    "allowJs": true
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "out"
+  ]
+}
