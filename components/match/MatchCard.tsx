@@ -10,10 +10,10 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
+import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { MapPin, User, Instagram } from 'lucide-react'
+import { MapPin, User, MessageSquare } from 'lucide-react'
 
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -140,23 +140,12 @@ export default function MatchCard({ match }: { match: WingmanMatchItem }) {
               </DialogDescription>
             </DialogHeader>
 
-            {/* 상대 Wingman 연락처 */}
-            <div className="border border-slate-200 p-4 space-y-1">
+            {/* 상대 Wingman */}
+            <div className="border border-slate-200 p-4">
               <p className="text-xs text-slate-400 font-medium">상대 Wingman</p>
-              <p className="font-semibold text-slate-950">
+              <p className="font-semibold text-slate-950 mt-1">
                 {theirWingman.display_name ?? '이름 없음'}
               </p>
-              {theirWingman.insta_id && (
-                <a
-                  href={`https://www.instagram.com/${theirWingman.insta_id}/`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-950 transition-colors mt-1"
-                >
-                  <Instagram className="h-3.5 w-3.5" />
-                  @{theirWingman.insta_id}
-                </a>
-              )}
             </div>
 
             {/* 매칭 시각 */}
@@ -164,18 +153,15 @@ export default function MatchCard({ match }: { match: WingmanMatchItem }) {
               {timeAgo(matchedAt)} 매칭됐어요
             </p>
 
-            {/* 버튼 */}
-            {theirWingman.insta_id && (
-              <a
-                href={`https://www.instagram.com/${theirWingman.insta_id}/`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full h-12 bg-slate-950 text-white text-sm font-semibold hover:bg-black transition-colors"
-              >
-                <Instagram className="h-4 w-4" />
-                Wingman에게 DM 보내기
-              </a>
-            )}
+            {/* 채팅 버튼 */}
+            <Link
+              href={`/chat/${match.matchId}`}
+              onClick={() => setDialogOpen(false)}
+              className="flex items-center justify-center gap-2 w-full h-12 bg-slate-950 text-white text-sm font-semibold hover:bg-black transition-colors"
+            >
+              <MessageSquare className="h-4 w-4" />
+              채팅하기
+            </Link>
           </div>
 
         </DialogContent>
