@@ -45,3 +45,7 @@ public/sw.js.map
 # ── Supabase 로컬 ─────────────────────────────────────────────
 supabase/.branches
 supabase/.temp
+
+# ── Claude Code (액세스 토큰 포함) ────────────────────────────
+.claude/
+.mcp.json
