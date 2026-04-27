@@ -3,16 +3,16 @@
 /**
  * app/friends/register/page.tsx
  *
- * 친구 프로필 등록 — 완전 Flat B&W 디자인
+ * 친구 프로필 등록 — Flat B&W 디자인
  * 사진 최대 6장 업로드 (Supabase Storage: friend-photos 버킷)
  */
 
 import { useCallback, useRef, useState } from 'react'
-import { useForm }        from 'react-hook-form'
-import { zodResolver }    from '@hookform/resolvers/zod'
-import { z }              from 'zod'
-import { useRouter }      from 'next/navigation'
-import { Plus, X }        from 'lucide-react'
+import { useForm }       from 'react-hook-form'
+import { zodResolver }   from '@hookform/resolvers/zod'
+import { z }             from 'zod'
+import { useRouter }     from 'next/navigation'
+import { Plus, X, ArrowLeft } from 'lucide-react'
 
 import { Button }   from '@/components/ui/button'
 import { Input }    from '@/components/ui/input'
@@ -63,7 +63,7 @@ const REGION_OPTIONS = [
 ]
 
 // ─────────────────────────────────────────────────────────────
-// 타입
+// 타입 / 스키마
 // ─────────────────────────────────────────────────────────────
 
 interface PhotoItem {
@@ -71,10 +71,6 @@ interface PhotoItem {
   file:       File
   previewUrl: string
 }
-
-// ─────────────────────────────────────────────────────────────
-// 스키마
-// ─────────────────────────────────────────────────────────────
 
 const schema = z.object({
   display_name: z.string().min(1, '이름을 입력해주세요.').max(20, '20자 이하로 입력해주세요.'),
@@ -95,14 +91,14 @@ type FormValues = z.infer<typeof schema>
 // ─────────────────────────────────────────────────────────────
 
 export default function FriendRegisterPage() {
-  const router      = useRouter()
+  const router = useRouter()
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [photos,      setPhotos]      = useState<PhotoItem[]>([])
   const [isDragging,  setIsDragging]  = useState(false)
   const [photoError,  setPhotoError]  = useState<string | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
-  const [uploadMsg,   setUploadMsg]   = useState<string | null>(null)
+  const [statusMsg,   setStatusMsg]   = useState<string | null>(null)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -117,14 +113,13 @@ export default function FriendRegisterPage() {
   })
 
   const { isSubmitting } = form.formState
-  const bioLen           = (form.watch('bio') ?? '').length
-  const isLoading        = isSubmitting || isUploading
+  const bioLen = (form.watch('bio') ?? '').length
 
   // ── 사진 추가 ─────────────────────────────────────────────
 
   const addFiles = useCallback((files: FileList | File[]) => {
     setPhotoError(null)
-    const arr = Array.from(files)
+    const arr   = Array.from(files)
     const valid = arr.filter((f) => f.type.startsWith('image/'))
     if (valid.length === 0) return
 
@@ -165,24 +160,30 @@ export default function FriendRegisterPage() {
   // ── 제출 ──────────────────────────────────────────────────
 
   const onSubmit = async (data: FormValues) => {
+    // 사진 필수 검사
     if (photos.length === 0) {
       setPhotoError('사진을 최소 1장 이상 등록해주세요.')
       return
     }
 
-    setIsUploading(true)
-    setUploadMsg('사진 업로드 중...')
+    form.clearErrors('root')
+    setStatusMsg('사진 업로드 중...')
 
     try {
+      // 1. Supabase 인증 확인
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { form.setError('root', { message: '로그인이 필요합니다.' }); return }
+      const { data: { user }, error: authErr } = await supabase.auth.getUser()
+      if (authErr || !user) {
+        form.setError('root', { message: '로그인이 필요합니다. 다시 로그인해주세요.' })
+        return
+      }
 
-      // 사진을 Supabase Storage에 업로드
+      // 2. 사진을 Supabase Storage에 업로드
       const photoUrls: string[] = []
       for (let i = 0; i < photos.length; i++) {
+        setStatusMsg(`사진 업로드 중... (${i + 1}/${photos.length})`)
         const photo = photos[i]
-        const ext   = photo.file.name.split('.').pop() ?? 'jpg'
+        const ext   = photo.file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
         const path  = `${user.id}/${Date.now()}-${i}.${ext}`
 
         const { error: uploadError } = await supabase.storage
@@ -190,8 +191,11 @@ export default function FriendRegisterPage() {
           .upload(path, photo.file, { upsert: false })
 
         if (uploadError) {
-          console.error('사진 업로드 실패:', uploadError.message)
-          continue
+          // 업로드 실패 시 즉시 에러를 보여주고 중단
+          form.setError('root', {
+            message: `사진 업로드에 실패했습니다: ${uploadError.message}. Supabase Storage 버킷 권한을 확인해주세요.`,
+          })
+          return
         }
 
         const { data: { publicUrl } } = supabase.storage
@@ -201,7 +205,8 @@ export default function FriendRegisterPage() {
         photoUrls.push(publicUrl)
       }
 
-      setUploadMsg('저장 중...')
+      // 3. Server Action으로 DB 저장
+      setStatusMsg('저장 중...')
 
       const result = await registerFriend({
         display_name: data.display_name,
@@ -213,15 +218,25 @@ export default function FriendRegisterPage() {
         photoUrls,
       })
 
-      if (result && 'error' in result) {
+      // 4. 결과 처리
+      if ('error' in result) {
         form.setError('root', { message: result.error })
+        return
       }
-      // 성공 시 registerFriend 내부에서 redirect('/home')
+
+      // 5. 성공 → 친구 목록 페이지로 이동 (client-side navigation)
+      router.push('/friends')
+      router.refresh()
+
+    } catch (err) {
+      console.error('[FriendRegisterPage] onSubmit 예외:', err)
+      form.setError('root', { message: '알 수 없는 오류가 발생했습니다. 다시 시도해주세요.' })
     } finally {
-      setIsUploading(false)
-      setUploadMsg(null)
+      setStatusMsg(null)
     }
   }
+
+  const isLoading = isSubmitting || statusMsg !== null
 
   // ─────────────────────────────────────────────────────────
   // 렌더
@@ -232,19 +247,27 @@ export default function FriendRegisterPage() {
 
       {/* ── 헤더 ─────────────────────────────────────────────── */}
       <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
-        <div className="max-w-lg mx-auto px-6 h-14 flex items-center justify-between">
-          <span className="font-bold text-slate-950 text-sm">BeWing</span>
-          <span className="text-xs text-slate-400 font-medium">친구 등록</span>
+        <div className="max-w-lg mx-auto px-5 h-14 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="p-1 text-slate-500 hover:text-slate-950 transition-colors"
+            aria-label="뒤로 가기"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <span className="font-bold text-slate-950 text-sm flex-1">친구 등록</span>
+          <span className="text-xs text-slate-400">BeWing</span>
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-6 pt-8 pb-28">
+      <div className="max-w-lg mx-auto px-5 pt-8 pb-28">
 
         {/* 타이틀 */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-950">친구 소개하기</h1>
-          <p className="text-sm text-slate-500 mt-1.5">
-            친구 대신 프로필을 등록해주세요. 최대 5명까지 등록할 수 있어요.
+          <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+            친구 대신 프로필을 등록해주세요.<br />최대 5명까지 등록할 수 있어요.
           </p>
         </div>
 
@@ -266,7 +289,6 @@ export default function FriendRegisterPage() {
               >
                 {/* 사진 그리드 */}
                 <div className="grid grid-cols-3 gap-2">
-                  {/* 등록된 사진 */}
                   {photos.map((photo) => (
                     <div key={photo.id} className="relative aspect-square bg-slate-100">
                       <img
@@ -285,7 +307,7 @@ export default function FriendRegisterPage() {
                     </div>
                   ))}
 
-                  {/* 추가 슬롯 */}
+                  {/* 추가 버튼 */}
                   {photos.length < MAX_PHOTOS && (
                     <button
                       type="button"
@@ -299,17 +321,19 @@ export default function FriendRegisterPage() {
                     </button>
                   )}
 
-                  {/* 빈 슬롯 (그리드 유지용) */}
+                  {/* 빈 슬롯 */}
                   {photos.length === 0 && Array.from({ length: 2 }).map((_, i) => (
-                    <div key={i} className="aspect-square border border-dashed border-slate-200 bg-slate-50" />
+                    <div
+                      key={i}
+                      className="aspect-square border border-dashed border-slate-200 bg-slate-50"
+                    />
                   ))}
                 </div>
 
-                {/* 안내 문구 */}
                 <p className="text-center text-xs text-slate-400 mt-3">
                   {photos.length === 0
                     ? '클릭하거나 사진을 드래그해서 추가하세요'
-                    : `${photos.length}/${MAX_PHOTOS}장 추가됨 · 드래그해서 더 추가하기`}
+                    : `${photos.length}/${MAX_PHOTOS}장 추가됨`}
                 </p>
               </div>
 
@@ -324,14 +348,14 @@ export default function FriendRegisterPage() {
               />
 
               {photoError && (
-                <p className="text-sm text-slate-700 border-l-2 border-slate-950 pl-3 py-0.5">
+                <p className="text-sm text-red-600 border-l-2 border-red-500 pl-3 py-0.5">
                   {photoError}
                 </p>
               )}
 
               <p className="text-xs text-slate-400">
                 · 사진은 최소 1장 이상 필요해요<br />
-                · 본인과 친구의 사진만 업로드해주세요
+                · 친구 본인의 실제 사진을 등록해주세요
               </p>
             </section>
 
@@ -354,7 +378,7 @@ export default function FriendRegisterPage() {
                         placeholder="홍길동"
                         autoComplete="off"
                         disabled={isLoading}
-                        className="h-11 border-slate-200 focus:border-slate-400 text-slate-950 placeholder:text-slate-400"
+                        className="h-11 border-slate-200 focus:border-slate-950 text-slate-950 placeholder:text-slate-400"
                         {...field}
                       />
                     </FormControl>
@@ -372,20 +396,22 @@ export default function FriendRegisterPage() {
                       인스타그램 아이디 <Required />
                     </FormLabel>
                     <div className="flex">
-                      <span className="inline-flex items-center px-3.5 border border-r-0 border-slate-200 bg-slate-50 text-slate-400 text-sm select-none font-medium">
+                      <span className="inline-flex items-center px-3.5 border border-r-0 border-slate-200 bg-slate-50 text-slate-500 text-sm font-medium select-none">
                         @
                       </span>
                       <FormControl>
                         <Input
-                          placeholder="friends_instagram_id"
+                          placeholder="instagram_id"
                           autoComplete="off"
                           autoCapitalize="none"
                           spellCheck={false}
                           disabled={isLoading}
-                          className="h-11 border-slate-200 focus:border-slate-400 text-slate-950 placeholder:text-slate-400"
+                          className="h-11 border-slate-200 focus:border-slate-950 text-slate-950 placeholder:text-slate-400"
                           {...field}
                           onChange={(e) =>
-                            field.onChange(e.target.value.replace(/^@/, '').toLowerCase().trimStart())
+                            field.onChange(
+                              e.target.value.replace(/^@/, '').toLowerCase().trimStart()
+                            )
                           }
                         />
                       </FormControl>
@@ -411,7 +437,11 @@ export default function FriendRegisterPage() {
                       <FormLabel className="text-sm font-medium text-slate-700">
                         나이 <Required />
                       </FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isLoading}>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? ''}
+                        disabled={isLoading}
+                      >
                         <FormControl>
                           <SelectTrigger className="mt-1 h-11 border-slate-200">
                             <SelectValue placeholder="선택" />
@@ -436,7 +466,11 @@ export default function FriendRegisterPage() {
                       <FormLabel className="text-sm font-medium text-slate-700">
                         성별 <Required />
                       </FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isLoading}>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? ''}
+                        disabled={isLoading}
+                      >
                         <FormControl>
                           <SelectTrigger className="mt-1 h-11 border-slate-200">
                             <SelectValue placeholder="선택" />
@@ -462,7 +496,11 @@ export default function FriendRegisterPage() {
                     <FormLabel className="text-sm font-medium text-slate-700">
                       지역 <Required />
                     </FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isLoading}>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value ?? ''}
+                      disabled={isLoading}
+                    >
                       <FormControl>
                         <SelectTrigger className="mt-1 h-11 border-slate-200">
                           <SelectValue placeholder="거주 지역 선택" />
@@ -482,7 +520,7 @@ export default function FriendRegisterPage() {
 
             <Divider />
 
-            {/* ── 섹션 4: 소개 ───────────────────────────────────── */}
+            {/* ── 섹션 4: 소개글 ─────────────────────────────────── */}
             <section className="space-y-5">
               <SectionHeading label="한 줄 소개" />
 
@@ -496,17 +534,19 @@ export default function FriendRegisterPage() {
                         소개글
                         <span className="text-slate-400 font-normal ml-1 text-xs">(선택)</span>
                       </FormLabel>
-                      <span className={`text-xs tabular-nums ${bioLen > BIO_MAX ? 'text-slate-950 font-semibold' : 'text-slate-400'}`}>
+                      <span className={`text-xs tabular-nums ${
+                        bioLen > BIO_MAX ? 'text-red-500 font-semibold' : 'text-slate-400'
+                      }`}>
                         {bioLen}/{BIO_MAX}
                       </span>
                     </div>
                     <FormControl>
                       <Textarea
-                        placeholder="친구를 한 마디로 소개해주세요. 예) 조용한 카페를 좋아하는 개발자. 진지한 만남 원해요."
+                        placeholder="친구를 한 마디로 소개해주세요. 예) 조용한 카페를 좋아하는 개발자."
                         rows={4}
                         disabled={isLoading}
                         maxLength={BIO_MAX + 10}
-                        className="border-slate-200 focus:border-slate-400 text-slate-950 placeholder:text-slate-400 resize-none"
+                        className="border-slate-200 focus:border-slate-950 text-slate-950 placeholder:text-slate-400 resize-none"
                         {...field}
                       />
                     </FormControl>
@@ -516,9 +556,9 @@ export default function FriendRegisterPage() {
               />
             </section>
 
-            {/* ── 에러 ─────────────────────────────────────────────── */}
+            {/* ── 전역 에러 ────────────────────────────────────────── */}
             {form.formState.errors.root && (
-              <div className="border-l-2 border-slate-950 pl-3 py-1 text-sm text-slate-700">
+              <div className="border-l-2 border-red-500 pl-3 py-2 text-sm text-red-600 bg-red-50">
                 {form.formState.errors.root.message}
               </div>
             )}
@@ -527,13 +567,13 @@ export default function FriendRegisterPage() {
             <div className="space-y-3">
               <Button
                 type="submit"
-                className="w-full h-12 bg-slate-950 hover:bg-black text-white font-semibold text-sm"
+                className="w-full h-12 bg-slate-950 hover:bg-black text-white font-semibold text-sm disabled:opacity-60"
                 disabled={isLoading}
               >
                 {isLoading ? (
                   <span className="flex items-center gap-2">
                     <LoadingSpinner />
-                    {uploadMsg ?? '처리 중...'}
+                    {statusMsg ?? '처리 중...'}
                   </span>
                 ) : '친구 등록하기'}
               </Button>
@@ -542,7 +582,7 @@ export default function FriendRegisterPage() {
                 type="button"
                 onClick={() => router.back()}
                 disabled={isLoading}
-                className="w-full h-11 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+                className="w-full h-11 text-sm text-slate-500 hover:text-slate-700 disabled:opacity-40 transition-colors"
               >
                 취소
               </button>
@@ -577,7 +617,13 @@ function Required() {
 
 function LoadingSpinner() {
   return (
-    <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+    <svg
+      className="h-4 w-4 animate-spin"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
     </svg>
