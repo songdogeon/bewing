@@ -96,7 +96,7 @@ export async function registerFriend(
 
     if (photoError) {
       console.error('[registerFriend] 사진 저장 실패:', photoError.message)
-      // 사진 저장 실패해도 프로필은 유지 (사용자에게는 성공으로 처리)
+      return { error: `사진 저장 실패: ${photoError.message} (code: ${photoError.code ?? '-'})` }
     }
   }
 
