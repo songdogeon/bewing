@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Send } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
@@ -40,24 +40,24 @@ interface Props {
 // ─────────────────────────────────────────────────────────────
 
 export default function ChatClient({ match, initialMessages, currentUserId }: Props) {
-  const router  = useRouter()
-  const supabase = createClient()
+  const router   = useRouter()
+  const supabase = useMemo(() => createClient(), [])
 
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [input,    setInput]    = useState('')
   const [sending,  setSending]  = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
 
-  const bottomRef  = useRef<HTMLDivElement>(null)
-  const inputRef   = useRef<HTMLTextAreaElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef  = useRef<HTMLTextAreaElement>(null)
 
-  // 내가 wingman1인지 wingman2인지
   const isWingman1   = match.wingman1_id === currentUserId
   const myFriend     = isWingman1 ? match.friend1 : match.friend2
   const theirFriend  = isWingman1 ? match.friend2 : match.friend1
   const theirWingman = isWingman1 ? match.wingman2 : match.wingman1
 
-  const myFriendName    = myFriend.display_name    ?? `@${myFriend.insta_id}`
-  const theirFriendName = theirFriend.display_name ?? `@${theirFriend.insta_id}`
+  const myFriendName     = myFriend.display_name    ?? `@${myFriend.insta_id}`
+  const theirFriendName  = theirFriend.display_name ?? `@${theirFriend.insta_id}`
   const theirWingmanName = theirWingman.display_name ?? theirWingman.insta_id ?? '상대 Wingman'
 
   // ── 스크롤 하단 고정 ──────────────────────────────────────
@@ -87,7 +87,7 @@ export default function ChatClient({ match, initialMessages, currentUserId }: Pr
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [match.id])
+  }, [supabase, match.id])
 
   // ── 메시지 전송 ───────────────────────────────────────────
   const handleSend = useCallback(async () => {
@@ -95,21 +95,24 @@ export default function ChatClient({ match, initialMessages, currentUserId }: Pr
     if (!text || sending) return
 
     setSending(true)
+    setError(null)
     setInput('')
 
-    const { error } = await supabase.from('messages').insert({
+    const { error: insertError } = await supabase.from('messages').insert({
       match_id:  match.id,
       sender_id: currentUserId,
       content:   text,
     })
 
-    if (error) {
-      console.error('[ChatClient] 메시지 전송 실패:', error.message)
+    if (insertError) {
+      console.error('[Chat] 전송 실패:', insertError.message)
+      setError('메시지 전송에 실패했습니다.')
       setInput(text)
     }
+
     setSending(false)
     inputRef.current?.focus()
-  }, [input, sending, match.id, currentUserId])
+  }, [input, sending, supabase, match.id, currentUserId])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -127,7 +130,7 @@ export default function ChatClient({ match, initialMessages, currentUserId }: Pr
 
       {/* ── 헤더 ─────────────────────────────────────────────── */}
       <header className="shrink-0 border-b border-slate-100">
-        <div className="flex items-center gap-3 px-4 h-14">
+        <div className="flex items-center gap-3 px-4 h-14 pt-safe">
           <button
             onClick={() => router.back()}
             className="p-1 text-slate-500 hover:text-slate-950 transition-colors"
@@ -154,9 +157,7 @@ export default function ChatClient({ match, initialMessages, currentUserId }: Pr
           <span className="font-semibold text-slate-700">{theirFriendName}</span>
           {' '}의 매칭이 성사됐어요!
         </p>
-        <p className="text-xs text-slate-400 mt-0.5">
-          {theirWingmanName}에게 연락해 서로 소개해주세요
-        </p>
+        <p className="text-xs text-slate-400 mt-0.5">채팅으로 서로 소개해주세요</p>
       </div>
 
       {/* ── 메시지 목록 ──────────────────────────────────────── */}
@@ -175,7 +176,7 @@ export default function ChatClient({ match, initialMessages, currentUserId }: Pr
               className={`flex flex-col gap-1 ${isMine ? 'items-end' : 'items-start'}`}
             >
               <div
-                className={`max-w-[75%] px-3.5 py-2.5 text-sm leading-relaxed break-words ${
+                className={`max-w-[75%] px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap ${
                   isMine
                     ? 'bg-slate-950 text-white'
                     : 'bg-slate-100 text-slate-900'
@@ -193,14 +194,21 @@ export default function ChatClient({ match, initialMessages, currentUserId }: Pr
         <div ref={bottomRef} />
       </main>
 
+      {/* ── 에러 메시지 ──────────────────────────────────────── */}
+      {error && (
+        <div className="shrink-0 px-4 py-2 bg-red-50 border-t border-red-100">
+          <p className="text-xs text-red-600">{error}</p>
+        </div>
+      )}
+
       {/* ── 입력창 ───────────────────────────────────────────── */}
-      <div className="shrink-0 border-t border-slate-100 px-4 py-3 flex items-end gap-2">
+      <div className="shrink-0 border-t border-slate-100 px-4 py-3 flex items-end gap-2 pb-safe">
         <textarea
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="메시지 입력..."
+          placeholder="메시지 입력... (Enter 전송)"
           rows={1}
           maxLength={1000}
           disabled={sending}
