@@ -60,6 +60,17 @@ export default function ChatClient({ match, initialMessages, currentUserId }: Pr
   const theirFriendName  = theirFriend.display_name ?? `@${theirFriend.insta_id}`
   const theirWingmanName = theirWingman.display_name ?? theirWingman.insta_id ?? '상대 Wingman'
 
+  // ── 채팅방 진입 시 읽음 처리 ──────────────────────────────
+  useEffect(() => {
+    supabase
+      .from('match_reads')
+      .upsert(
+        { match_id: match.id, user_id: currentUserId, last_read_at: new Date().toISOString() },
+        { onConflict: 'match_id,user_id' }
+      )
+      .then(() => {})
+  }, [match.id, currentUserId, supabase])
+
   // ── 스크롤 하단 고정 ──────────────────────────────────────
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -82,6 +93,16 @@ export default function ChatClient({ match, initialMessages, currentUserId }: Pr
           setMessages((prev) =>
             prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
           )
+          // 상대방 메시지 수신 시 즉시 읽음 처리
+          if (msg.sender_id !== currentUserId) {
+            supabase
+              .from('match_reads')
+              .upsert(
+                { match_id: match.id, user_id: currentUserId, last_read_at: new Date().toISOString() },
+                { onConflict: 'match_id,user_id' }
+              )
+              .then(() => {})
+          }
         }
       )
       .subscribe()

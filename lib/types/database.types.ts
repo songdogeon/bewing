@@ -211,6 +211,32 @@ export type Database = {
           },
         ]
       }
+      match_reads: {
+        Row: {
+          last_read_at: string
+          match_id:     string
+          user_id:      string
+        }
+        Insert: {
+          last_read_at?: string
+          match_id:      string
+          user_id:       string
+        }
+        Update: {
+          last_read_at?: string
+          match_id?:     string
+          user_id?:      string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_reads_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "wingman_matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string

@@ -200,6 +200,7 @@ export default function SwipePageClient({ myFriends }: Props) {
                       width={36}
                       height={36}
                       className="w-full h-full object-cover"
+                      unoptimized
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
@@ -281,6 +282,7 @@ function FriendCard({
             width={56}
             height={56}
             className="w-full h-full object-cover"
+            unoptimized
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
