@@ -1,12 +1,5 @@
 'use client'
 
-/**
- * app/onboarding/page.tsx
- *
- * Wingman 온보딩 — 본인 정보 입력
- * 가입 직후 1회만 진행. 완료 후 /home으로 이동.
- */
-
 import { useState } from 'react'
 import { useForm }  from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -23,6 +16,7 @@ import {
 } from '@/components/ui/select'
 
 import { onboardingAction } from './actions'
+import { REGION_OPTIONS, AGE_OPTIONS, GENDER_OPTIONS } from '@/lib/constants/regions'
 
 // ─────────────────────────────────────────────────────────────
 // 스키마
@@ -30,17 +24,13 @@ import { onboardingAction } from './actions'
 
 const schema = z.object({
   display_name: z.string().min(1, '이름을 입력해주세요.').max(20, '20자 이하로 입력해주세요.'),
-  insta_id:     z.string()
+  insta_id: z.string()
     .min(1, '인스타그램 아이디를 입력해주세요.')
     .max(30, '30자 이하로 입력해주세요.')
     .regex(/^@?[\w.]+$/, '올바른 인스타그램 아이디 형식이 아닙니다.'),
-  age: z.coerce
-    .number({ invalid_type_error: '나이를 입력해주세요.' })
-    .int()
-    .min(18, '만 18세 이상만 가입할 수 있습니다.')
-    .max(100, '올바른 나이를 입력해주세요.'),
+  age:    z.string().min(1, '나이를 선택해주세요.'),
   gender: z.enum(['male', 'female', 'other'], { required_error: '성별을 선택해주세요.' }),
-  region: z.string().min(1, '지역을 입력해주세요.').max(20, '20자 이하로 입력해주세요.'),
+  region: z.string().min(1, '지역을 선택해주세요.'),
   bio:    z.string().max(200, '200자 이하로 입력해주세요.'),
 })
 
@@ -58,7 +48,7 @@ export default function OnboardingPage() {
     defaultValues: {
       display_name: '',
       insta_id:     '',
-      age:          undefined,
+      age:          '',
       gender:       undefined,
       region:       '',
       bio:          '',
@@ -67,7 +57,6 @@ export default function OnboardingPage() {
 
   const { isSubmitting } = form.formState
 
-  // Step 1 → Step 2 전환 (display_name, insta_id 검증 후)
   const goToStep2 = async () => {
     const valid = await form.trigger(['display_name', 'insta_id'])
     if (valid) setStep(2)
@@ -77,7 +66,7 @@ export default function OnboardingPage() {
     const result = await onboardingAction({
       display_name: data.display_name,
       insta_id:     data.insta_id,
-      age:          data.age,
+      age:          Number(data.age),
       gender:       data.gender,
       region:       data.region,
       bio:          data.bio ?? '',
@@ -90,10 +79,12 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen flex flex-col bg-white">
 
-      {/* ── 상단 진행 표시 ────────────────────────────────────── */}
+      {/* ── 진행 바 ────────────────────────────────────────────── */}
       <div className="flex gap-1 px-6 pt-14">
-        <div className="h-0.5 flex-1 bg-slate-950 rounded-full" />
-        <div className={`h-0.5 flex-1 rounded-full transition-colors duration-300 ${step === 2 ? 'bg-slate-950' : 'bg-slate-200'}`} />
+        <div className="h-0.5 flex-1 bg-slate-950" />
+        <div className={`h-0.5 flex-1 transition-colors duration-300 ${
+          step === 2 ? 'bg-slate-950' : 'bg-slate-200'
+        }`} />
       </div>
 
       <div className="flex-1 flex flex-col px-6 pt-8 pb-10 max-w-sm w-full mx-auto">
@@ -117,6 +108,7 @@ export default function OnboardingPage() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 gap-6">
 
+            {/* ── Step 1: 이름 + 인스타 ──────────────────────── */}
             {step === 1 && (
               <>
                 <FormField
@@ -131,7 +123,7 @@ export default function OnboardingPage() {
                         <Input
                           placeholder="홍길동"
                           autoComplete="name"
-                          className="h-11 rounded-md border-slate-200 focus:border-slate-400 text-slate-950 placeholder:text-slate-400"
+                          className="h-11 border-slate-200 focus:border-slate-950 text-slate-950 placeholder:text-slate-400"
                           {...field}
                         />
                       </FormControl>
@@ -148,19 +140,23 @@ export default function OnboardingPage() {
                       <FormLabel className="text-sm font-medium text-slate-700">
                         인스타그램 아이디 <span className="text-slate-950">*</span>
                       </FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm select-none">@</span>
+                      <div className="flex">
+                        <span className="inline-flex items-center px-3.5 border border-r-0 border-slate-200 bg-slate-50 text-slate-500 text-sm font-medium select-none">
+                          @
+                        </span>
+                        <FormControl>
                           <Input
                             placeholder="your_instagram_id"
                             autoComplete="off"
                             autoCapitalize="none"
-                            className="h-11 rounded-md border-slate-200 focus:border-slate-400 text-slate-950 placeholder:text-slate-400 pl-7"
+                            className="h-11 border-slate-200 focus:border-slate-950 text-slate-950 placeholder:text-slate-400"
                             {...field}
-                            onChange={(e) => field.onChange(e.target.value.replace(/^@/, ''))}
+                            onChange={(e) =>
+                              field.onChange(e.target.value.replace(/^@/, '').toLowerCase().trimStart())
+                            }
                           />
-                        </div>
-                      </FormControl>
+                        </FormControl>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -170,7 +166,7 @@ export default function OnboardingPage() {
                   <Button
                     type="button"
                     onClick={goToStep2}
-                    className="w-full h-12 rounded-lg bg-slate-950 hover:bg-black text-white font-semibold text-sm"
+                    className="w-full h-12 bg-slate-950 hover:bg-black text-white font-semibold text-sm"
                   >
                     다음
                   </Button>
@@ -178,6 +174,7 @@ export default function OnboardingPage() {
               </>
             )}
 
+            {/* ── Step 2: 나이 / 성별 / 지역 / 소개글 ─────────── */}
             {step === 2 && (
               <>
                 <div className="grid grid-cols-2 gap-4">
@@ -189,17 +186,22 @@ export default function OnboardingPage() {
                         <FormLabel className="text-sm font-medium text-slate-700">
                           나이 <span className="text-slate-950">*</span>
                         </FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="25"
-                            inputMode="numeric"
-                            min={18}
-                            max={100}
-                            className="h-11 rounded-md border-slate-200 focus:border-slate-400 text-slate-950 placeholder:text-slate-400"
-                            {...field}
-                          />
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value ?? ''}
+                          disabled={isSubmitting}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="mt-1 h-11 border-slate-200">
+                              <SelectValue placeholder="선택" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {AGE_OPTIONS.map((a) => (
+                              <SelectItem key={a} value={String(a)}>{a}세</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -213,16 +215,20 @@ export default function OnboardingPage() {
                         <FormLabel className="text-sm font-medium text-slate-700">
                           성별 <span className="text-slate-950">*</span>
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value ?? ''}
+                          disabled={isSubmitting}
+                        >
                           <FormControl>
-                            <SelectTrigger className="h-11 rounded-md border-slate-200 text-slate-950">
+                            <SelectTrigger className="mt-1 h-11 border-slate-200">
                               <SelectValue placeholder="선택" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="male">남성</SelectItem>
-                            <SelectItem value="female">여성</SelectItem>
-                            <SelectItem value="other">기타</SelectItem>
+                            {GENDER_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -239,13 +245,22 @@ export default function OnboardingPage() {
                       <FormLabel className="text-sm font-medium text-slate-700">
                         지역 <span className="text-slate-950">*</span>
                       </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="서울 강남구"
-                          className="h-11 rounded-md border-slate-200 focus:border-slate-400 text-slate-950 placeholder:text-slate-400"
-                          {...field}
-                        />
-                      </FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? ''}
+                        disabled={isSubmitting}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="mt-1 h-11 border-slate-200">
+                            <SelectValue placeholder="거주 지역 선택" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {REGION_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -257,13 +272,15 @@ export default function OnboardingPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-sm font-medium text-slate-700">
-                        자기소개 <span className="text-slate-400 font-normal text-xs ml-1">선택</span>
+                        자기소개
+                        <span className="text-slate-400 font-normal text-xs ml-1">(선택)</span>
                       </FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="간단하게 본인을 소개해주세요. (200자 이내)"
                           rows={4}
-                          className="rounded-md border-slate-200 focus:border-slate-400 text-slate-950 placeholder:text-slate-400 resize-none"
+                          disabled={isSubmitting}
+                          className="border-slate-200 focus:border-slate-950 text-slate-950 placeholder:text-slate-400 resize-none"
                           {...field}
                         />
                       </FormControl>
@@ -273,7 +290,7 @@ export default function OnboardingPage() {
                 />
 
                 {form.formState.errors.root && (
-                  <div className="border-l-2 border-slate-950 pl-3 py-1 text-sm text-slate-700">
+                  <div className="border-l-2 border-red-500 pl-3 py-2 text-sm text-red-600 bg-red-50">
                     {form.formState.errors.root.message}
                   </div>
                 )}
@@ -283,14 +300,14 @@ export default function OnboardingPage() {
                     type="button"
                     variant="outline"
                     onClick={() => setStep(1)}
-                    className="h-12 px-6 rounded-lg border-slate-200 text-slate-600 text-sm"
+                    className="h-12 px-6 border-slate-200 text-slate-600 text-sm"
                     disabled={isSubmitting}
                   >
                     이전
                   </Button>
                   <Button
                     type="submit"
-                    className="flex-1 h-12 rounded-lg bg-slate-950 hover:bg-black text-white font-semibold text-sm"
+                    className="flex-1 h-12 bg-slate-950 hover:bg-black text-white font-semibold text-sm"
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
@@ -311,8 +328,6 @@ export default function OnboardingPage() {
     </div>
   )
 }
-
-// ─────────────────────────────────────────────────────────────
 
 function LoadingSpinner() {
   return (
