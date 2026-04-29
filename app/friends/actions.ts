@@ -102,3 +102,48 @@ export async function registerFriend(
 
   return { success: true }
 }
+
+// ─────────────────────────────────────────────────────────────
+// deleteFriend
+// ─────────────────────────────────────────────────────────────
+
+export type DeleteFriendResult =
+  | { success: true }
+  | { error: string }
+
+export async function deleteFriend(
+  friendId: string
+): Promise<DeleteFriendResult> {
+  const supabase = await createClient()
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) return { error: '로그인이 필요합니다.' }
+
+  // 소유권 확인 후 사진 먼저 삭제 (CASCADE 미보장 대비)
+  const { data: friend } = await supabase
+    .from('friend_profiles')
+    .select('id')
+    .eq('id', friendId)
+    .eq('registered_by', user.id)
+    .single()
+
+  if (!friend) return { error: '친구를 찾을 수 없거나 삭제 권한이 없습니다.' }
+
+  await supabase
+    .from('friend_photos')
+    .delete()
+    .eq('friend_id', friendId)
+
+  const { error: deleteError } = await supabase
+    .from('friend_profiles')
+    .delete()
+    .eq('id', friendId)
+    .eq('registered_by', user.id)
+
+  if (deleteError) {
+    console.error('[deleteFriend] 삭제 실패:', deleteError.message)
+    return { error: '삭제에 실패했습니다. 잠시 후 다시 시도해주세요.' }
+  }
+
+  return { success: true }
+}

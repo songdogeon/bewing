@@ -32,7 +32,7 @@ const PUBLIC_ROUTES = ['/', '/about', '/terms', '/privacy']
 const AUTH_ROUTES = ['/login', '/signup']
 
 // 보호된 라우트 - 비로그인: /login 리다이렉트 / 로그인: 온보딩 체크
-const PROTECTED_ROUTES = ['/home', '/swipe', '/matches', '/friends', '/chat']
+const PROTECTED_ROUTES = ['/home', '/swipe', '/matches', '/friends', '/chat', '/settings']
 
 // 온보딩 상태 쿠키 이름 및 TTL (7일)
 const ONBOARDED_COOKIE = 'wm_onboarded'
