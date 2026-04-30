@@ -6,8 +6,6 @@ import { ArrowLeft, Mail } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/client'
 
-export const metadata = { title: '비밀번호 재설정' }
-
 export default function ForgotPasswordPage() {
   const [email,   setEmail]   = useState('')
   const [sent,    setSent]    = useState(false)
