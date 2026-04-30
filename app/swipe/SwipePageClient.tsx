@@ -18,7 +18,12 @@ import Image from 'next/image'
 
 import { SwipeStack }        from '@/components/swipe/SwipeStack'
 import MatchBanner           from '@/components/match/MatchBanner'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from '@/components/ui/dialog'
 import { getSwipeCards, recordFriendSwipe } from './actions'
+import { reportFriend, blockWingman, REPORT_REASONS } from './reportActions'
+import type { ReportReason } from './reportActions'
 import type { MyFriend }     from './actions'
 import type { CardData, SwipeDirection } from '@/lib/types/swipe.types'
 
@@ -41,6 +46,14 @@ export default function SwipePageClient({ myFriends }: Props) {
   const [isLoadingCards, setIsLoadingCards] = useState(false)
   const [matchVisible,   setMatchVisible]   = useState(false)
   const [matchedInstaId, setMatchedInstaId] = useState('')
+
+  // ── 신고/차단 다이얼로그 state ────────────────────────────
+  type ModalStep = 'closed' | 'choose' | 'report' | 'blocking'
+  const [modalStep,    setModalStep]    = useState<ModalStep>('closed')
+  const [actionCard,   setActionCard]   = useState<CardData | null>(null)
+  const [reportReason, setReportReason] = useState<ReportReason | ''>('')
+  const [modalMsg,     setModalMsg]     = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // ── 친구 선택 → 카드 로드 ──────────────────────────────────
 
@@ -82,6 +95,43 @@ export default function SwipePageClient({ myFriends }: Props) {
     setView('select')
     setSelectedFriend(null)
     setCards([])
+  }
+
+  // ── 신고/차단 핸들러 ──────────────────────────────────────
+
+  const handleMoreOptions = useCallback((card: CardData) => {
+    setActionCard(card)
+    setReportReason('')
+    setModalMsg(null)
+    setModalStep('choose')
+  }, [])
+
+  const closeModal = () => {
+    setModalStep('closed')
+    setActionCard(null)
+    setModalMsg(null)
+  }
+
+  const handleReport = async () => {
+    if (!actionCard || !reportReason) return
+    setIsSubmitting(true)
+    const result = await reportFriend(actionCard.id, reportReason)
+    setIsSubmitting(false)
+    if ('error' in result) { setModalMsg(result.error); return }
+    // 신고 완료 후 해당 카드 덱에서 제거
+    setCards((prev) => prev.filter((c) => c.id !== actionCard.id))
+    closeModal()
+  }
+
+  const handleBlock = async () => {
+    if (!actionCard) return
+    setIsSubmitting(true)
+    const result = await blockWingman(actionCard.wingmanId)
+    setIsSubmitting(false)
+    if ('error' in result) { setModalMsg(result.error); return }
+    // 차단된 Wingman의 친구 카드 전부 덱에서 제거
+    setCards((prev) => prev.filter((c) => c.wingmanId !== actionCard.wingmanId))
+    closeModal()
   }
 
   // ─────────────────────────────────────────────────────────
@@ -234,6 +284,7 @@ export default function SwipePageClient({ myFriends }: Props) {
                 <SwipeStack
                   cards={cards}
                   onSwipe={handleSwipe}
+                  onMoreOptions={handleMoreOptions}
                 />
               )}
             </main>
@@ -241,6 +292,119 @@ export default function SwipePageClient({ myFriends }: Props) {
         )}
 
       </AnimatePresence>
+
+      {/* ── 신고/차단 다이얼로그 ──────────────────────────── */}
+      <Dialog open={modalStep !== 'closed'} onOpenChange={(o) => { if (!o) closeModal() }}>
+        <DialogContent className="max-w-xs mx-auto p-0 border border-slate-200 shadow-sm">
+          <div className="p-6 space-y-5">
+
+            {/* Step 1: 선택 */}
+            {modalStep === 'choose' && (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-base font-bold text-slate-950">
+                    {actionCard?.display_name ?? `@${actionCard?.insta_id}`}
+                  </DialogTitle>
+                  <DialogDescription asChild>
+                    <p className="text-sm text-slate-500">이 프로필에 대해 어떤 조치를 하시겠어요?</p>
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => setModalStep('report')}
+                    className="h-11 w-full border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    신고하기
+                  </button>
+                  <button
+                    onClick={() => setModalStep('blocking')}
+                    className="h-11 w-full border border-slate-950 text-sm font-medium text-slate-950 hover:bg-slate-100 transition-colors"
+                  >
+                    차단하기
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Step 2a: 신고 사유 선택 */}
+            {modalStep === 'report' && (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-base font-bold text-slate-950">신고 사유 선택</DialogTitle>
+                  <DialogDescription asChild>
+                    <p className="text-sm text-slate-500">해당하는 사유를 선택해주세요.</p>
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col gap-1">
+                  {REPORT_REASONS.map((r) => (
+                    <button
+                      key={r.value}
+                      onClick={() => setReportReason(r.value)}
+                      className={`h-10 w-full text-left px-3 text-sm transition-colors ${
+                        reportReason === r.value
+                          ? 'bg-slate-950 text-white'
+                          : 'border border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+                {modalMsg && <p className="text-xs text-red-600">{modalMsg}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setModalStep('choose')}
+                    className="flex-1 h-10 border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                    disabled={isSubmitting}
+                  >
+                    이전
+                  </button>
+                  <button
+                    onClick={handleReport}
+                    disabled={!reportReason || isSubmitting}
+                    className="flex-1 h-10 bg-slate-950 text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40"
+                  >
+                    {isSubmitting ? '처리 중...' : '신고하기'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Step 2b: 차단 확인 */}
+            {modalStep === 'blocking' && (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-base font-bold text-slate-950">차단하기</DialogTitle>
+                  <DialogDescription asChild>
+                    <p className="text-sm text-slate-500 leading-relaxed">
+                      이 Wingman을 차단하면 해당 Wingman의 친구 프로필이 더 이상 스와이프에 나타나지 않아요.
+                      기존 매칭도 종료됩니다.
+                    </p>
+                  </DialogDescription>
+                </DialogHeader>
+                {modalMsg && <p className="text-xs text-red-600">{modalMsg}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setModalStep('choose')}
+                    className="flex-1 h-11 border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                    disabled={isSubmitting}
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleBlock}
+                    disabled={isSubmitting}
+                    className="flex-1 h-11 bg-slate-950 text-white text-sm font-semibold hover:bg-black transition-colors disabled:opacity-40"
+                  >
+                    {isSubmitting ? '처리 중...' : '차단하기'}
+                  </button>
+                </div>
+              </>
+            )}
+
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 매칭 배너 */}
       <MatchBanner

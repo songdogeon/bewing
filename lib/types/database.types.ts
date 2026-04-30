@@ -172,6 +172,24 @@ export type Database = {
           },
         ]
       }
+      wingman_blocks: {
+        Row: {
+          blocker_id: string
+          blocked_id: string
+          created_at: string
+        }
+        Insert: {
+          blocker_id: string
+          blocked_id: string
+          created_at?: string
+        }
+        Update: {
+          blocker_id?: string
+          blocked_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       matches: {
         Row: {
           created_at: string | null
@@ -207,6 +225,41 @@ export type Database = {
             columns: ["user2_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      friend_reports: {
+        Row: {
+          created_at:  string
+          details:     string | null
+          friend_id:   string
+          id:          string
+          reason:      string
+          reporter_id: string
+        }
+        Insert: {
+          created_at?:  string
+          details?:     string | null
+          friend_id:    string
+          id?:          string
+          reason:       string
+          reporter_id:  string
+        }
+        Update: {
+          created_at?:  string
+          details?:     string | null
+          friend_id?:   string
+          id?:          string
+          reason?:      string
+          reporter_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "friend_reports_friend_id_fkey"
+            columns: ["friend_id"]
+            isOneToOne: false
+            referencedRelation: "friend_profiles"
             referencedColumns: ["id"]
           },
         ]

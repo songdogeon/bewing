@@ -83,14 +83,21 @@ export async function getSwipeCards(fromFriendId: string): Promise<CardData[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  // 이미 스와이프한 to_friend_id 목록
-  const { data: swiped } = await supabase
-    .from('wingman_swipes')
-    .select('to_friend_id')
-    .eq('wingman_id', user.id)
-    .eq('from_friend_id', fromFriendId)
+  // 이미 스와이프한 to_friend_id + 차단한 Wingman ID 병렬 조회
+  const [{ data: swiped }, { data: blocked }] = await Promise.all([
+    supabase
+      .from('wingman_swipes')
+      .select('to_friend_id')
+      .eq('wingman_id', user.id)
+      .eq('from_friend_id', fromFriendId),
+    supabase
+      .from('wingman_blocks')
+      .select('blocked_id')
+      .eq('blocker_id', user.id),
+  ])
 
-  const swipedIds = swiped?.map((s) => s.to_friend_id) ?? []
+  const swipedIds      = swiped?.map((s) => s.to_friend_id) ?? []
+  const blockedWingIds = blocked?.map((b) => b.blocked_id)  ?? []
 
   // 상대 Wingman의 친구 프로필 조회
   let query = supabase
@@ -107,6 +114,9 @@ export async function getSwipeCards(fromFriendId: string): Promise<CardData[]> {
 
   if (swipedIds.length > 0) {
     query = query.not('id', 'in', `(${swipedIds.join(',')})`)
+  }
+  if (blockedWingIds.length > 0) {
+    query = query.not('registered_by', 'in', `(${blockedWingIds.join(',')})`)
   }
 
   const { data, error } = await query

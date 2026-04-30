@@ -21,7 +21,7 @@ import {
   useMotionValue,
   useTransform,
 } from 'framer-motion'
-import { MapPin } from 'lucide-react'
+import { MapPin, MoreHorizontal } from 'lucide-react'
 
 import type { CardData, SwipeDirection } from '@/lib/types/swipe.types'
 
@@ -38,10 +38,11 @@ const FLY_DISTANCE_MULTIPLIER = 1.5
 // ─────────────────────────────────────────────────────────────
 
 export interface SwipeCardProps {
-  card:       CardData
-  isTop:      boolean
-  stackIndex: number
-  onSwipe:    (direction: SwipeDirection, card: CardData) => void
+  card:            CardData
+  isTop:           boolean
+  stackIndex:      number
+  onSwipe:         (direction: SwipeDirection, card: CardData) => void
+  onMoreOptions?:  (card: CardData) => void
 }
 
 export interface SwipeCardHandle {
@@ -53,7 +54,7 @@ export interface SwipeCardHandle {
 // ─────────────────────────────────────────────────────────────
 
 export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(
-  function SwipeCard({ card, isTop, stackIndex, onSwipe }, ref) {
+  function SwipeCard({ card, isTop, stackIndex, onSwipe, onMoreOptions }, ref) {
     const [photoIndex, setPhotoIndex] = useState(0)
     const [photoError, setPhotoError] = useState<Record<number, boolean>>({})
     const isDraggingRef   = useRef(false)
@@ -162,9 +163,22 @@ export const SwipeCard = forwardRef<SwipeCardHandle, SwipeCardProps>(
           {/* 하단 그라디언트 */}
           <div className="absolute inset-x-0 bottom-0 h-[52%] bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
 
+          {/* ── 더보기 버튼 ──────────────────────────────── */}
+          {isTop && onMoreOptions && (
+            <button
+              type="button"
+              className="absolute top-3 right-3 z-20 h-8 w-8 bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onMoreOptions(card) }}
+              aria-label="더보기"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          )}
+
           {/* ── 사진 인디케이터 ──────────────────────────── */}
           {photos.length > 1 && (
-            <div className="absolute top-4 left-4 right-4 flex gap-1">
+            <div className="absolute top-4 left-4 right-12 flex gap-1">
               {photos.map((_, i) => (
                 <div
                   key={i}

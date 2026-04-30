@@ -19,9 +19,10 @@ import type { CardData, SwipeDirection } from '@/lib/types/swipe.types'
 const MAX_VISIBLE_CARDS = 3
 
 export interface SwipeStackProps {
-  cards:    CardData[]
-  onSwipe?: (direction: SwipeDirection, card: CardData) => void
-  onEmpty?: () => void
+  cards:           CardData[]
+  onSwipe?:        (direction: SwipeDirection, card: CardData) => void
+  onEmpty?:        () => void
+  onMoreOptions?:  (card: CardData) => void
 }
 
 interface SwipeHistoryItem {
@@ -29,7 +30,7 @@ interface SwipeHistoryItem {
   card:      CardData
 }
 
-export function SwipeStack({ cards: initialCards, onSwipe, onEmpty }: SwipeStackProps) {
+export function SwipeStack({ cards: initialCards, onSwipe, onEmpty, onMoreOptions }: SwipeStackProps) {
   const [activeCards,  setActiveCards]  = useState<CardData[]>(initialCards)
   const [swipeHistory, setSwipeHistory] = useState<SwipeHistoryItem[]>([])
   const [isAnimating,  setIsAnimating]  = useState(false)
@@ -92,6 +93,7 @@ export function SwipeStack({ cards: initialCards, onSwipe, onEmpty }: SwipeStack
                   isTop={isTop}
                   stackIndex={stackIndex}
                   onSwipe={handleSwipe}
+                  onMoreOptions={onMoreOptions}
                 />
               )
             })
