@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import Link  from 'next/link'
-import { Plus, User, Trash2, ArrowRight } from 'lucide-react'
+import { Plus, User, Trash2, Pencil, ArrowRight } from 'lucide-react'
 
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -209,12 +209,19 @@ function FriendItem({
       </div>
 
       {/* 액션 */}
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         <Link
           href="/swipe"
-          className="text-xs text-slate-400 hover:text-slate-950 transition-colors"
+          className="text-xs text-slate-400 hover:text-slate-950 transition-colors mr-1"
         >
           스와이프 →
+        </Link>
+        <Link
+          href={`/friends/${friend.id}/edit`}
+          className="p-1.5 text-slate-300 hover:text-slate-950 transition-colors"
+          aria-label="친구 수정"
+        >
+          <Pencil className="h-4 w-4" />
         </Link>
         <button
           onClick={() => onDelete(friend)}

@@ -147,3 +147,97 @@ export async function deleteFriend(
 
   return { success: true }
 }
+
+// ─────────────────────────────────────────────────────────────
+// updateFriend
+// ─────────────────────────────────────────────────────────────
+
+export interface UpdateFriendData {
+  display_name:     string
+  insta_id:         string
+  age:              number
+  gender:           'male' | 'female' | 'other'
+  region:           string
+  bio:              string
+  photoIdsToDelete: string[]
+  newPhotoUrls:     string[]
+}
+
+export type UpdateFriendResult =
+  | { success: true }
+  | { error: string }
+
+export async function updateFriend(
+  friendId: string,
+  data:     UpdateFriendData
+): Promise<UpdateFriendResult> {
+  const supabase = await createClient()
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) return { error: '로그인이 필요합니다.' }
+
+  const { data: friend } = await supabase
+    .from('friend_profiles')
+    .select('id')
+    .eq('id', friendId)
+    .eq('registered_by', user.id)
+    .single()
+
+  if (!friend) return { error: '친구를 찾을 수 없거나 수정 권한이 없습니다.' }
+
+  const cleanInstaId = data.insta_id.replace(/^@/, '').trim().toLowerCase()
+
+  const { error: updateError } = await supabase
+    .from('friend_profiles')
+    .update({
+      display_name: data.display_name.trim(),
+      insta_id:     cleanInstaId,
+      age:          data.age,
+      gender:       data.gender,
+      region:       data.region,
+      bio:          data.bio.trim() || null,
+      updated_at:   new Date().toISOString(),
+    })
+    .eq('id', friendId)
+
+  if (updateError) {
+    if (updateError.code === '23505') return { error: '이미 사용 중인 인스타그램 아이디예요.' }
+    return { error: '수정에 실패했습니다. 잠시 후 다시 시도해주세요.' }
+  }
+
+  if (data.photoIdsToDelete.length > 0) {
+    await supabase
+      .from('friend_photos')
+      .delete()
+      .in('id', data.photoIdsToDelete)
+      .eq('friend_id', friendId)
+  }
+
+  if (data.newPhotoUrls.length > 0) {
+    const { data: remaining } = await supabase
+      .from('friend_photos')
+      .select('display_order')
+      .eq('friend_id', friendId)
+      .order('display_order', { ascending: false })
+      .limit(1)
+
+    const baseOrder = (remaining?.[0]?.display_order ?? -1) + 1
+
+    const photoInserts = data.newPhotoUrls.map((url, i) => ({
+      friend_id:     friendId,
+      photo_url:     url,
+      display_order: baseOrder + i,
+      uploaded_by:   user.id,
+    }))
+
+    const { error: photoError } = await supabase
+      .from('friend_photos')
+      .insert(photoInserts)
+
+    if (photoError) {
+      return { error: '사진 저장에 실패했습니다. 기본 정보는 수정됐어요.' }
+    }
+  }
+
+  return { success: true }
+}
