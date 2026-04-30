@@ -597,7 +597,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_unread_message_count: {
+        Args:    Record<string, never>
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
