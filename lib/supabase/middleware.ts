@@ -26,10 +26,10 @@ import type { Database } from '@/lib/types/database.types'
 // ─────────────────────────────────────────────────────────────
 
 // 인증 없이 접근 가능한 공개 라우트
-const PUBLIC_ROUTES = ['/', '/about', '/terms', '/privacy']
+const PUBLIC_ROUTES = ['/', '/about', '/terms', '/privacy', '/reset-password']
 
 // 인증 라우트 - 비로그인: 통과 / 로그인: 온보딩 체크 후 리다이렉트
-const AUTH_ROUTES = ['/login', '/signup']
+const AUTH_ROUTES = ['/login', '/signup', '/forgot-password']
 
 // 보호된 라우트 - 비로그인: /login 리다이렉트 / 로그인: 온보딩 체크
 const PROTECTED_ROUTES = ['/home', '/swipe', '/matches', '/friends', '/chat', '/settings']

@@ -156,6 +156,15 @@ export default function LoginPage() {
                 ) : '로그인'}
               </Button>
 
+              <div className="text-center">
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-slate-400 hover:text-slate-700 underline underline-offset-2 transition-colors"
+                >
+                  비밀번호를 잊으셨나요?
+                </Link>
+              </div>
+
             </form>
           </Form>
 
